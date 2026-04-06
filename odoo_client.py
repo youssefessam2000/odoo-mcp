@@ -164,16 +164,41 @@ class OdooClient:
             })
         return result
 
+    def get_users_by_department(self, department_name: str) -> list:
+        """Return all Odoo user IDs belonging to a department (by name)."""
+        employees = self._execute(
+            model="hr.employee",
+            method="search_read",
+            args=[[["department_id.name", "ilike", department_name]]],
+            kwargs={"fields": ["id", "name", "user_id", "department_id"]},
+        )
+        result = []
+        for emp in employees:
+            if emp.get("user_id"):
+                result.append({
+                    "user_id": emp["user_id"][0],
+                    "user_name": emp["user_id"][1],
+                    "employee_name": emp["name"],
+                    "department": emp["department_id"][1] if emp.get("department_id") else None,
+                })
+        return result
+
     def get_project_tasks(self, project_id: int, limit: int = 20, offset: int = 0,
                           stage_id: int | None = None, stage: str | None = None,
                           deadline_from: str | None = None,
-                          deadline_to: str | None = None) -> dict:
+                          deadline_to: str | None = None,
+                          keyword: str | None = None,
+                          user_ids: list[int] | None = None) -> dict:
         """Return tasks in a project with optional filters and pagination."""
         domain = [["project_id", "=", project_id]]
         if stage_id:
             domain.append(["stage_id", "=", stage_id])
         elif stage:
             domain.append(["stage_id.name", "ilike", stage])
+        if keyword:
+            domain += ["|", ["name", "ilike", keyword], ["description", "ilike", keyword]]
+        if user_ids:
+            domain.append(["|", ["user_id", "in", user_ids], ["project_user_ids", "in", user_ids]])
         if deadline_from:
             domain.append(["date_deadline", ">=", deadline_from])
         if deadline_to:
@@ -183,7 +208,7 @@ class OdooClient:
             method="search_read",
             args=[domain],
             kwargs={
-                "fields": ["id", "name", "user_id", "stage_id", "planned_hours",
+                "fields": ["id", "name", "description", "user_id", "stage_id", "planned_hours",
                            "effective_hours", "remaining_hours", "date_deadline"],
                 "limit": limit,
                 "offset": offset,
@@ -453,6 +478,28 @@ class OdooClient:
                 "total_hours_logged": round(row.get("unit_amount", 0), 2),
             })
         return result
+
+    def get_user_department(self, user_id: int) -> dict:
+        """Return the department of a user via hr.employee."""
+        results = self._execute(
+            model="hr.employee",
+            method="search_read",
+            args=[[["user_id", "=", user_id]]],
+            kwargs={
+                "fields": ["id", "name", "department_id", "job_title"],
+                "limit": 1,
+            },
+        )
+        if not results:
+            raise ValueError(f"No employee record found for user_id: {user_id}")
+        emp = results[0]
+        return {
+            "user_id": user_id,
+            "employee_name": emp["name"],
+            "department_id": emp["department_id"][0] if emp.get("department_id") else None,
+            "department": emp["department_id"][1] if emp.get("department_id") else None,
+            "job_title": emp.get("job_title"),
+        }
 
     def get_user_by_email(self, email: str) -> dict:
         """Resolve an email address to an Odoo user ID and name."""

@@ -183,6 +183,28 @@ def get_user_projects(user_id: int) -> list:
 
 
 @mcp.tool()
+def get_users_by_department(department_name: str) -> list:
+    """Get all users (with their Odoo user IDs) belonging to a department.
+
+    Use this to resolve a department name to user IDs before filtering tasks by department.
+
+    Args:
+        department_name: Full or partial department name e.g. 'Development'.
+    """
+    return client.get_users_by_department(department_name=department_name)
+
+
+@mcp.tool()
+def get_user_department(user_id: int) -> dict:
+    """Get the department of a user by their Odoo user ID.
+
+    Args:
+        user_id: The Odoo user ID (get it first from get_user_by_email).
+    """
+    return client.get_user_department(user_id=user_id)
+
+
+@mcp.tool()
 def get_user_by_email(email: str) -> dict:
     """Resolve a user's email to their Odoo user ID and name.
     Always call this when a user mentions a developer by email before calling any user-specific tool.
@@ -222,7 +244,9 @@ def get_project_progress(project_id: int) -> list:
 def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
                       stage_id: int | None = None, stage: str | None = None,
                       deadline_from: str | None = None,
-                      deadline_to: str | None = None) -> dict:
+                      deadline_to: str | None = None,
+                      keyword: str | None = None,
+                      user_ids: list[int] | None = None) -> dict:
     """Get tasks in a project with optional filters and pagination.
 
     Args:
@@ -233,10 +257,13 @@ def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
         stage:         Filter by stage name e.g. 'Done' — used only if stage_id not provided (optional).
         deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
         deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
+        keyword:       Filter tasks whose name contains this keyword e.g. 'bug fixing' (optional).
+        user_ids:      Filter tasks assigned to any of these user IDs (optional).
     """
     return client.get_project_tasks(project_id=project_id, limit=limit, offset=offset,
                                     stage_id=stage_id, stage=stage,
-                                    deadline_from=deadline_from, deadline_to=deadline_to)
+                                    deadline_from=deadline_from, deadline_to=deadline_to,
+                                    keyword=keyword, user_ids=user_ids)
 
 
 @mcp.tool()
