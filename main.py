@@ -5,7 +5,7 @@ from odoo_client import OdooClient
 
 load_dotenv()
 
-mcp = FastMCP("Odoo Timesheet")
+mcp = FastMCP("Odoo Timesheet", host="0.0.0.0")
 
 client = OdooClient(
     base_url=os.getenv("ODOO_BASE_URL", ""),
