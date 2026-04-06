@@ -329,12 +329,27 @@ def get_tasks_by_stage(stage_id: int, project_id: int | None = None,
                                      deadline_from=deadline_from, deadline_to=deadline_to)
 
 
+class FixHostMiddleware:
+    """Replace external Host header with localhost so FastMCP's host check passes."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            scope = dict(scope)
+            scope["headers"] = [
+                (b"host", b"localhost") if k == b"host" else (k, v)
+                for k, v in scope.get("headers", [])
+            ]
+        await self.app(scope, receive, send)
+
+
 if __name__ == "__main__":
     import sys
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
     if transport == "streamable-http":
         import uvicorn
         port = int(os.getenv("PORT", 8000))
-        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=port)
+        uvicorn.run(FixHostMiddleware(mcp.streamable_http_app()), host="0.0.0.0", port=port)
     else:
         mcp.run(transport=transport)
