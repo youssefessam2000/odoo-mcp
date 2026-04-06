@@ -155,11 +155,14 @@ class OdooClient:
         return result
 
     def get_project_tasks(self, project_id: int, limit: int = 20, offset: int = 0,
-                          stage: str | None = None, deadline_from: str | None = None,
+                          stage_id: int | None = None, stage: str | None = None,
+                          deadline_from: str | None = None,
                           deadline_to: str | None = None) -> dict:
         """Return tasks in a project with optional filters and pagination."""
         domain = [["project_id", "=", project_id]]
-        if stage:
+        if stage_id:
+            domain.append(["stage_id", "=", stage_id])
+        elif stage:
             domain.append(["stage_id.name", "ilike", stage])
         if deadline_from:
             domain.append(["date_deadline", ">=", deadline_from])
@@ -226,6 +229,37 @@ class OdooClient:
             "progress_pct": round((actual / planned * 100), 1) if planned > 0 else None,
         }
 
+    def get_task_progress(self, task_id: int) -> dict:
+        """Return planned hours, total spent, and hours breakdown per developer for a task."""
+        task = self.get_task_details(task_id)
+        rows = self._execute(
+            model="account.analytic.line",
+            method="read_group",
+            args=[[["task_id", "=", task_id]]],
+            kwargs={
+                "fields": ["user_id", "unit_amount"],
+                "groupby": ["user_id"],
+            },
+        )
+        breakdown = []
+        for row in rows:
+            user = row.get("user_id")
+            breakdown.append({
+                "user_id": user[0] if user else None,
+                "user_name": user[1] if user else "Unknown",
+                "hours_logged": round(row.get("unit_amount", 0), 2),
+            })
+        return {
+            "task_id": task_id,
+            "task_name": task["task_name"],
+            "stage": task["stage"],
+            "estimated_hours": task["estimated_hours"],
+            "actual_hours": task["actual_hours"],
+            "remaining_hours": task["remaining_hours"],
+            "progress_pct": task["progress_pct"],
+            "developers": breakdown,
+        }
+
     def get_task_hours_by_user(self, task_id: int, user_id: int) -> dict:
         """Return total hours a specific user logged on a specific task."""
         entries = self._execute(
@@ -245,6 +279,90 @@ class OdooClient:
             "entry_count": len(entries),
             "entries": entries,
         }
+
+    # ── Stage helpers ──────────────────────────────────────────────────────
+
+    def list_stages(self, project_id: int | None = None) -> list:
+        """Return all task stages, optionally filtered to a specific project."""
+        domain = []
+        if project_id:
+            domain.append(["project_ids", "in", [project_id]])
+        return self._execute(
+            model="project.task.type",
+            method="search_read",
+            args=[domain],
+            kwargs={
+                "fields": ["id", "name", "sequence"],
+                "order": "sequence asc",
+            },
+        )
+
+    def get_tasks_by_stage(self, stage_id: int, project_id: int | None = None,
+                           limit: int = 20, offset: int = 0,
+                           deadline_from: str | None = None,
+                           deadline_to: str | None = None) -> dict:
+        """Return tasks in a specific stage, with optional project and deadline filters."""
+        domain = [["stage_id", "=", stage_id]]
+        if project_id:
+            domain.append(["project_id", "=", project_id])
+        if deadline_from:
+            domain.append(["date_deadline", ">=", deadline_from])
+        if deadline_to:
+            domain.append(["date_deadline", "<=", deadline_to])
+        tasks = self._execute(
+            model="project.task",
+            method="search_read",
+            args=[domain],
+            kwargs={
+                "fields": ["id", "name", "user_id", "project_id", "stage_id",
+                           "planned_hours", "effective_hours", "remaining_hours", "date_deadline"],
+                "order": "project_id asc",
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+        total = self._execute("project.task", "search_count", [domain])
+        result = []
+        for task in tasks:
+            planned = task.get("planned_hours") or 0
+            actual = task.get("effective_hours") or 0
+            result.append({
+                "task_id": task["id"],
+                "task_name": task["name"],
+                "assignee": task["user_id"][1] if task.get("user_id") else "Unassigned",
+                "project": task["project_id"][1] if task.get("project_id") else "No Project",
+                "project_id": task["project_id"][0] if task.get("project_id") else None,
+                "stage": task["stage_id"][1] if task.get("stage_id") else "Unknown",
+                "deadline": task.get("date_deadline"),
+                "estimated_hours": round(planned, 2),
+                "actual_hours": round(actual, 2),
+                "remaining_hours": round(task.get("remaining_hours") or (planned - actual), 2),
+                "progress_pct": round((actual / planned * 100), 1) if planned > 0 else None,
+            })
+        return {"total": total, "offset": offset, "limit": limit, "records": result}
+
+    def get_tasks_by_phase_number(self, project_id: int, phase_number: int,
+                                  limit: int = 20, offset: int = 0,
+                                  deadline_from: str | None = None,
+                                  deadline_to: str | None = None) -> dict:
+        """Return tasks in the Nth stage of a project (1 = first stage, 2 = second, etc.)."""
+        stages = self.list_stages(project_id=project_id)
+        if not stages:
+            raise ValueError(f"No stages found for project {project_id}.")
+        if phase_number < 1 or phase_number > len(stages):
+            raise ValueError(f"Phase number {phase_number} is out of range — project has {len(stages)} stages.")
+        stage = stages[phase_number - 1]
+        result = self.get_tasks_by_stage(
+            stage_id=stage["id"],
+            project_id=project_id,
+            limit=limit,
+            offset=offset,
+            deadline_from=deadline_from,
+            deadline_to=deadline_to,
+        )
+        result["phase_number"] = phase_number
+        result["phase_name"] = stage["name"]
+        return result
 
     # ── User helpers ───────────────────────────────────────────────────────
 

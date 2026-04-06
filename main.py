@@ -220,7 +220,8 @@ def get_project_progress(project_id: int) -> list:
 
 @mcp.tool()
 def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
-                      stage: str | None = None, deadline_from: str | None = None,
+                      stage_id: int | None = None, stage: str | None = None,
+                      deadline_from: str | None = None,
                       deadline_to: str | None = None) -> dict:
     """Get tasks in a project with optional filters and pagination.
 
@@ -228,12 +229,14 @@ def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
         project_id:    The Odoo project ID.
         limit:         Max tasks per page (default 20).
         offset:        Skip N tasks for pagination (default 0).
-        stage:         Filter by stage name e.g. 'Done' (optional).
+        stage_id:      Filter by stage ID — preferred over stage name (optional).
+        stage:         Filter by stage name e.g. 'Done' — used only if stage_id not provided (optional).
         deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
         deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
     """
     return client.get_project_tasks(project_id=project_id, limit=limit, offset=offset,
-                                     stage=stage, deadline_from=deadline_from, deadline_to=deadline_to)
+                                    stage_id=stage_id, stage=stage,
+                                    deadline_from=deadline_from, deadline_to=deadline_to)
 
 
 @mcp.tool()
@@ -247,6 +250,16 @@ def get_task_details(task_id: int) -> dict:
 
 
 @mcp.tool()
+def get_task_progress(task_id: int) -> dict:
+    """Get planned hours, total hours spent, and per-developer breakdown for a task.
+
+    Args:
+        task_id: The Odoo task ID.
+    """
+    return client.get_task_progress(task_id=task_id)
+
+
+@mcp.tool()
 def get_task_hours_by_user(task_id: int, user_id: int) -> dict:
     """Get how many hours a specific user has logged on a specific task.
 
@@ -255,6 +268,65 @@ def get_task_hours_by_user(task_id: int, user_id: int) -> dict:
         user_id: The Odoo user ID of the developer.
     """
     return client.get_task_hours_by_user(task_id=task_id, user_id=user_id)
+
+
+# ── Stage Tools ────────────────────────────────────────────────────────────
+
+
+@mcp.tool()
+def list_stages(project_id: int | None = None) -> list:
+    """List all task stages (kanban columns) available in Odoo.
+    Call this first to get stage IDs before using get_tasks_by_stage.
+
+    Args:
+        project_id: If provided, only return stages belonging to that project (optional).
+    """
+    return client.list_stages(project_id=project_id)
+
+
+@mcp.tool()
+def get_tasks_by_phase_number(project_id: int, phase_number: int,
+                              limit: int = 20, offset: int = 0,
+                              deadline_from: str | None = None,
+                              deadline_to: str | None = None) -> dict:
+    """Get tasks in the Nth stage of a project by position (1 = first stage, 2 = second, etc.).
+
+    Call list_stages(project_id) first to see how many phases the project has.
+
+    Args:
+        project_id:    The Odoo project ID.
+        phase_number:  Position of the stage (1-based).
+        limit:         Max tasks per page (default 20).
+        offset:        Skip N tasks for pagination (default 0).
+        deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
+        deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
+    """
+    return client.get_tasks_by_phase_number(project_id=project_id, phase_number=phase_number,
+                                            limit=limit, offset=offset,
+                                            deadline_from=deadline_from, deadline_to=deadline_to)
+
+
+@mcp.tool()
+def get_tasks_by_stage(stage_id: int, project_id: int | None = None,
+                       limit: int = 20, offset: int = 0,
+                       deadline_from: str | None = None,
+                       deadline_to: str | None = None) -> dict:
+    """Get all tasks in a specific stage (by stage ID).
+
+    Call list_stages first to get the correct stage ID.
+    Can optionally be scoped to a single project.
+
+    Args:
+        stage_id:      The Odoo stage ID (from list_stages).
+        project_id:    Scope to a specific project (optional).
+        limit:         Max tasks per page (default 20).
+        offset:        Skip N tasks for pagination (default 0).
+        deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
+        deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
+    """
+    return client.get_tasks_by_stage(stage_id=stage_id, project_id=project_id,
+                                     limit=limit, offset=offset,
+                                     deadline_from=deadline_from, deadline_to=deadline_to)
 
 
 if __name__ == "__main__":
