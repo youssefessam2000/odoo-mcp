@@ -9,11 +9,21 @@ class OdooClient:
         self.api_key = api_key
         self.uid: int | None = None
 
-        self._common = xmlrpc.client.ServerProxy(f"{self.base_url}/xmlrpc/2/common")
-        self._models = xmlrpc.client.ServerProxy(f"{self.base_url}/xmlrpc/2/object")
+        self._common = None
+        self._models = None
+
+    def _get_common(self):
+        if self._common is None:
+            self._common = xmlrpc.client.ServerProxy(f"{self.base_url}/xmlrpc/2/common")
+        return self._common
+
+    def _get_models(self):
+        if self._models is None:
+            self._models = xmlrpc.client.ServerProxy(f"{self.base_url}/xmlrpc/2/object")
+        return self._models
 
     def authenticate(self) -> dict:
-        uid = self._common.authenticate(self.db, self.email, self.api_key, {})
+        uid = self._get_common().authenticate(self.db, self.email, self.api_key, {})
         if not uid:
             raise ValueError("Authentication failed — check your email and API key.")
         self.uid = uid
@@ -25,7 +35,7 @@ class OdooClient:
 
     def _execute(self, model: str, method: str, args: list, kwargs: dict | None = None) -> any:
         self._ensure_auth()
-        return self._models.execute_kw(
+        return self._get_models().execute_kw(
             self.db, self.uid, self.api_key,
             model, method, args, kwargs or {}
         )
