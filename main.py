@@ -332,4 +332,8 @@ def get_tasks_by_stage(stage_id: int, project_id: int | None = None,
 if __name__ == "__main__":
     import sys
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
-    mcp.run(transport=transport)
+    if transport in ("streamable-http", "sse"):
+        port = int(os.getenv("PORT", 8000))
+        mcp.run(transport=transport, port=port)
+    else:
+        mcp.run(transport=transport)
