@@ -38,6 +38,16 @@ def list_stages(project_id: int | None = None) -> list:
 
 
 @mcp.tool()
+def list_phases(project_id: int) -> list:
+    """List all phases for a specific project. Call this to show phases as buttons.
+
+    Args:
+        project_id: The Odoo project ID (from list_projects).
+    """
+    return client.list_phases(project_id=project_id)
+
+
+@mcp.tool()
 def list_departments() -> list:
     """List all departments. Call this to show departments as buttons before filtering by department."""
     return client.list_departments()
@@ -61,6 +71,7 @@ def get_users_by_department(department_id: int) -> list:
 @mcp.tool()
 def get_project_tasks(project_id: int, limit: int = 50, offset: int = 0,
                       stage_id: int | None = None,
+                      phase_id: int | None = None,
                       deadline_from: str | None = None,
                       deadline_to: str | None = None,
                       keyword: str | None = None,
@@ -71,14 +82,15 @@ def get_project_tasks(project_id: int, limit: int = 50, offset: int = 0,
         project_id:    The Odoo project ID.
         limit:         Max tasks per page (default 50).
         offset:        Skip N tasks for pagination (default 0).
-        stage_id:      Filter by stage ID (from list_stages).
+        stage_id:      Filter by kanban stage ID (from list_stages) (optional).
+        phase_id:      Filter by phase/sprint ID (from list_phases) (optional).
         deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
         deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
         keyword:       Filter tasks whose name or description contains this keyword (optional).
         user_ids:      Filter tasks assigned to any of these user IDs (optional).
     """
     return client.get_project_tasks(project_id=project_id, limit=limit, offset=offset,
-                                    stage_id=stage_id,
+                                    stage_id=stage_id, phase_id=phase_id,
                                     deadline_from=deadline_from, deadline_to=deadline_to,
                                     keyword=keyword, user_ids=user_ids)
 

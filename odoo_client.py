@@ -164,6 +164,15 @@ class OdooClient:
             })
         return result
 
+    def list_phases(self, project_id: int) -> list:
+        """Return all phases for a specific project."""
+        return self._execute(
+            model="project.phase",
+            method="search_read",
+            args=[[["project_id", "=", project_id]]],
+            kwargs={"fields": ["id", "name", "sequence"], "order": "sequence asc"},
+        )
+
     def list_departments(self) -> list:
         """Return all departments."""
         return self._execute(
@@ -194,6 +203,7 @@ class OdooClient:
 
     def get_project_tasks(self, project_id: int, limit: int = 20, offset: int = 0,
                           stage_id: int | None = None,
+                          phase_id: int | None = None,
                           deadline_from: str | None = None,
                           deadline_to: str | None = None,
                           keyword: str | None = None,
@@ -202,6 +212,8 @@ class OdooClient:
         domain = [["project_id", "=", project_id]]
         if stage_id:
             domain.append(["stage_id", "=", stage_id])
+        if phase_id:
+            domain.append(["phase_id", "=", phase_id])
         if keyword:
             domain += ["|", ["name", "ilike", keyword], ["description", "ilike", keyword]]
         if user_ids:
@@ -215,8 +227,8 @@ class OdooClient:
             method="search_read",
             args=[domain],
             kwargs={
-                "fields": ["id", "name", "description", "user_id", "stage_id", "planned_hours",
-                           "effective_hours", "remaining_hours", "date_deadline"],
+                "fields": ["id", "name", "description", "user_id", "stage_id", "phase_id",
+                           "planned_hours", "effective_hours", "remaining_hours", "date_deadline"],
                 "limit": limit,
                 "offset": offset,
             },
