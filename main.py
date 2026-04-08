@@ -183,6 +183,12 @@ def get_user_projects(user_id: int) -> list:
 
 
 @mcp.tool()
+def list_departments() -> list:
+    """List all departments. Call this to show departments as buttons before filtering by department."""
+    return client.list_departments()
+
+
+@mcp.tool()
 def get_users_by_department(department_name: str) -> list:
     """Get all users (with their Odoo user IDs) belonging to a department.
 

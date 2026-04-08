@@ -164,6 +164,15 @@ class OdooClient:
             })
         return result
 
+    def list_departments(self) -> list:
+        """Return all departments."""
+        return self._execute(
+            model="hr.department",
+            method="search_read",
+            args=[[]],
+            kwargs={"fields": ["id", "name"], "order": "name asc"},
+        )
+
     def get_users_by_department(self, department_name: str) -> list:
         """Return all Odoo user IDs belonging to a department (by name)."""
         employees = self._execute(
