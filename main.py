@@ -154,7 +154,7 @@ def list_projects() -> list:
 
 @mcp.tool()
 def get_user_tasks(user_id: int, limit: int = 20, offset: int = 0,
-                   project_id: int | None = None, stage: str | None = None,
+                   project_id: int | None = None, stage_id: int | None = None,
                    deadline_from: str | None = None, deadline_to: str | None = None) -> dict:
     """Get tasks assigned to a specific user with optional filters and pagination.
 
@@ -163,12 +163,12 @@ def get_user_tasks(user_id: int, limit: int = 20, offset: int = 0,
         limit:         Max tasks per page (default 20).
         offset:        Skip N tasks for pagination (default 0).
         project_id:    Filter by project ID (optional).
-        stage:         Filter by stage name e.g. 'In Progress' (optional).
+        stage_id:      Filter by stage ID (from list_stages) (optional).
         deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
         deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
     """
     return client.get_user_tasks(user_id=user_id, limit=limit, offset=offset,
-                                  project_id=project_id, stage=stage,
+                                  project_id=project_id, stage_id=stage_id,
                                   deadline_from=deadline_from, deadline_to=deadline_to)
 
 
@@ -248,7 +248,7 @@ def get_project_progress(project_id: int) -> list:
 
 @mcp.tool()
 def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
-                      stage_id: int | None = None, stage: str | None = None,
+                      stage_id: int | None = None,
                       deadline_from: str | None = None,
                       deadline_to: str | None = None,
                       keyword: str | None = None,
@@ -259,15 +259,14 @@ def get_project_tasks(project_id: int, limit: int = 20, offset: int = 0,
         project_id:    The Odoo project ID.
         limit:         Max tasks per page (default 20).
         offset:        Skip N tasks for pagination (default 0).
-        stage_id:      Filter by stage ID — preferred over stage name (optional).
-        stage:         Filter by stage name e.g. 'Done' — used only if stage_id not provided (optional).
+        stage_id:      Filter by stage ID (from list_stages).
         deadline_from: Filter tasks with deadline from this date YYYY-MM-DD (optional).
         deadline_to:   Filter tasks with deadline up to this date YYYY-MM-DD (optional).
-        keyword:       Filter tasks whose name contains this keyword e.g. 'bug fixing' (optional).
+        keyword:       Filter tasks whose name or description contains this keyword (optional).
         user_ids:      Filter tasks assigned to any of these user IDs (optional).
     """
     return client.get_project_tasks(project_id=project_id, limit=limit, offset=offset,
-                                    stage_id=stage_id, stage=stage,
+                                    stage_id=stage_id,
                                     deadline_from=deadline_from, deadline_to=deadline_to,
                                     keyword=keyword, user_ids=user_ids)
 

@@ -193,7 +193,7 @@ class OdooClient:
         return result
 
     def get_project_tasks(self, project_id: int, limit: int = 20, offset: int = 0,
-                          stage_id: int | None = None, stage: str | None = None,
+                          stage_id: int | None = None,
                           deadline_from: str | None = None,
                           deadline_to: str | None = None,
                           keyword: str | None = None,
@@ -202,8 +202,6 @@ class OdooClient:
         domain = [["project_id", "=", project_id]]
         if stage_id:
             domain.append(["stage_id", "=", stage_id])
-        elif stage:
-            domain.append(["stage_id.name", "ilike", stage])
         if keyword:
             domain += ["|", ["name", "ilike", keyword], ["description", "ilike", keyword]]
         if user_ids:
@@ -424,14 +422,14 @@ class OdooClient:
         )
 
     def get_user_tasks(self, user_id: int, limit: int = 20, offset: int = 0,
-                       project_id: int | None = None, stage: str | None = None,
+                       project_id: int | None = None, stage_id: int | None = None,
                        deadline_from: str | None = None, deadline_to: str | None = None) -> dict:
         """Return tasks assigned to a user with optional filters and pagination."""
         domain = ["|", ["user_id", "=", user_id], ["project_user_ids", "=", user_id]]
         if project_id:
             domain = [["project_id", "=", project_id]] + domain
-        if stage:
-            domain.append(["stage_id.name", "ilike", stage])
+        if stage_id:
+            domain.append(["stage_id", "=", stage_id])
         if deadline_from:
             domain.append(["date_deadline", ">=", deadline_from])
         if deadline_to:
