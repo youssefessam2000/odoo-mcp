@@ -205,7 +205,7 @@ class OdooClient:
         if keyword:
             domain += ["|", ["name", "ilike", keyword], ["description", "ilike", keyword]]
         if user_ids:
-            domain.append(["|", ["user_id", "in", user_ids], ["project_user_ids", "in", user_ids]])
+            domain += ["|", ["user_id", "in", user_ids], ["project_user_ids", "in", user_ids]]
         if deadline_from:
             domain.append(["date_deadline", ">=", deadline_from])
         if deadline_to:
