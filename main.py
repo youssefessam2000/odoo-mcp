@@ -189,15 +189,15 @@ def list_departments() -> list:
 
 
 @mcp.tool()
-def get_users_by_department(department_name: str) -> list:
+def get_users_by_department(department_id: int) -> list:
     """Get all users (with their Odoo user IDs) belonging to a department.
 
-    Use this to resolve a department name to user IDs before filtering tasks by department.
+    Use this after the user selects a department from buttons (list_departments).
 
     Args:
-        department_name: Full or partial department name e.g. 'Development'.
+        department_id: The Odoo department ID (from list_departments).
     """
-    return client.get_users_by_department(department_name=department_name)
+    return client.get_users_by_department(department_id=department_id)
 
 
 @mcp.tool()

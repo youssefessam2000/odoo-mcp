@@ -173,12 +173,12 @@ class OdooClient:
             kwargs={"fields": ["id", "name"], "order": "name asc"},
         )
 
-    def get_users_by_department(self, department_name: str) -> list:
-        """Return all Odoo user IDs belonging to a department (by name)."""
+    def get_users_by_department(self, department_id: int) -> list:
+        """Return all Odoo user IDs belonging to a department (by ID)."""
         employees = self._execute(
             model="hr.employee",
             method="search_read",
-            args=[[["department_id.name", "ilike", department_name]]],
+            args=[[["department_id", "=", department_id]]],
             kwargs={"fields": ["id", "name", "user_id", "department_id"]},
         )
         result = []
