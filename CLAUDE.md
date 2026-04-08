@@ -62,7 +62,7 @@ CLAUDE.md        → This file
 ### Project analysis tools
 - `get_project(project_id)`
 - `get_project_progress(project_id)` — hours per developer
-- `get_project_tasks(project_id, limit, offset, stage, deadline_from, deadline_to)`
+- `get_project_tasks(project_id, limit, offset, stage_id, stage, deadline_from, deadline_to, keyword, user_ids)` — keyword filters on task name + description (ilike); user_ids filters by assignee
 
 ### Task tools
 - `get_task_details(task_id)`
@@ -73,6 +73,8 @@ CLAUDE.md        → This file
 - `get_user_by_email(email)` — resolves email → user_id
 - `get_user_tasks(user_id, limit, offset, project_id, stage, deadline_from, deadline_to)`
 - `get_user_projects(user_id)` — projects a user logged time on
+- `get_user_department(user_id)` — returns department name and job title for a user
+- `get_users_by_department(department_name)` — returns all user IDs in a department (ilike match)
 
 ## Pagination
 All list tools return:
@@ -97,11 +99,12 @@ py main.py streamable-http
 ```
 
 ## Voiceflow architecture
-4 agents planned:
+5 agents planned:
 1. **Project Analysis Agent** — get_project, get_project_progress, get_project_tasks
 2. **Timesheet Agent** — list/create/update/delete timesheets
 3. **Task Analysis Agent** — get_task_details, get_task_hours_by_user
-4. **File Upload Workflow** — no AI, pure logic
+4. **Task Search Agent** — list_projects, list_stages, get_users_by_department, get_project_tasks (keyword + department filter scenario)
+5. **File Upload Workflow** — no AI, pure logic
 
 ## Deployment plan
 - Deploy to **Railway** (not Netlify — needs persistent server)
@@ -118,7 +121,8 @@ py main.py streamable-http
       get_project_tasks, get_task_details, get_task_hours_by_user
 - [ ] Add optional user_id param to timesheet listing tools (for PMO use case)
 - [ ] Add search_users tool (search by name instead of email)
-- [ ] Deploy to Railway
+- [x] Deploy to Railway
 - [ ] Connect Voiceflow
-- [ ] Write agent instructions for all 4 agents
+- [x] Write agent instructions for Task Search Agent
+- [ ] Write agent instructions for remaining 4 agents
 - [ ] Full documentation PDF
