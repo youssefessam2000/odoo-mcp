@@ -170,7 +170,7 @@ class OdooClient:
             model="project.phase",
             method="search_read",
             args=[[["project_id", "=", project_id]]],
-            kwargs={"fields": ["id", "name", "sequence"], "order": "sequence asc"},
+            kwargs={"fields": ["id", "name"], "order": "id asc"},
         )
 
     def list_departments(self) -> list:
