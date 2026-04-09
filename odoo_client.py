@@ -227,27 +227,116 @@ class OdooClient:
             method="search_read",
             args=[domain],
             kwargs={
-                "fields": ["id", "name", "description", "user_id", "stage_id", "phase_id",
+                "fields": ["id", "name", "description", "user_id", "project_user_ids",
+                           "stage_id", "phase_id", "priority",
                            "planned_hours", "effective_hours", "remaining_hours", "date_deadline"],
                 "limit": limit,
                 "offset": offset,
             },
         )
         total = self._execute("project.task", "search_count", [domain])
+
+        # Collect all unique user IDs to fetch emails in one query
+        user_id_set = set()
+        for task in tasks:
+            if task.get("user_id"):
+                user_id_set.add(task["user_id"][0])
+            for uid in (task.get("project_user_ids") or []):
+                user_id_set.add(uid)
+
+        user_email_map = {}
+        if user_id_set:
+            users = self._execute(
+                model="res.users",
+                method="search_read",
+                args=[[["id", "in", list(user_id_set)]]],
+                kwargs={"fields": ["id", "name", "login"]},
+            )
+            user_email_map = {u["id"]: {"name": u["name"], "email": u["login"]} for u in users}
+
+        # Fetch timesheet hours per user per task in one batch query
+        task_ids = [t["id"] for t in tasks]
+        timesheets = self._execute(
+            model="account.analytic.line",
+            method="search_read",
+            args=[[["task_id", "in", task_ids]]],
+            kwargs={"fields": ["task_id", "user_id", "unit_amount"]},
+        )
+        # Build map: task_id -> { user_id -> hours }
+        task_hours_map: dict[int, dict[int, float]] = {}
+        ts_user_ids = set()
+        for ts in timesheets:
+            if not ts.get("task_id") or not ts.get("user_id"):
+                continue
+            tid = ts["task_id"][0]
+            uid = ts["user_id"][0]
+            ts_user_ids.add(uid)
+            task_hours_map.setdefault(tid, {})
+            task_hours_map[tid][uid] = task_hours_map[tid].get(uid, 0) + ts["unit_amount"]
+
+        # Fetch emails for any timesheet users not already in user_email_map
+        missing_ids = ts_user_ids - set(user_email_map.keys())
+        if missing_ids:
+            extra_users = self._execute(
+                model="res.users",
+                method="search_read",
+                args=[[["id", "in", list(missing_ids)]]],
+                kwargs={"fields": ["id", "name", "login"]},
+            )
+            for u in extra_users:
+                user_email_map[u["id"]] = {"name": u["name"], "email": u["login"]}
+
         result = []
         for task in tasks:
             planned = task.get("planned_hours") or 0
             actual = task.get("effective_hours") or 0
+
+            # Primary assignee
+            assignee = None
+            if task.get("user_id"):
+                uid = task["user_id"][0]
+                assignee = {
+                    "user_id": uid,
+                    "name": user_email_map.get(uid, {}).get("name", task["user_id"][1]),
+                    "email": user_email_map.get(uid, {}).get("email"),
+                }
+
+            # All assignees (multi-assign)
+            all_assignees = []
+            for uid in (task.get("project_user_ids") or []):
+                all_assignees.append({
+                    "user_id": uid,
+                    "name": user_email_map.get(uid, {}).get("name"),
+                    "email": user_email_map.get(uid, {}).get("email"),
+                })
+
+            # Hours breakdown per developer from timesheets
+            hours_by_developer = []
+            for uid, hours in sorted(
+                task_hours_map.get(task["id"], {}).items(),
+                key=lambda x: x[1], reverse=True
+            ):
+                hours_by_developer.append({
+                    "user_id": uid,
+                    "name": user_email_map.get(uid, {}).get("name"),
+                    "email": user_email_map.get(uid, {}).get("email"),
+                    "hours_logged": round(hours, 2),
+                })
+
             result.append({
                 "task_id": task["id"],
                 "task_name": task["name"],
-                "assignee": task["user_id"][1] if task.get("user_id") else "Unassigned",
+                "priority": "high" if task.get("priority") == "1" else "normal",
+                "assignee": assignee,
+                "all_assignees": all_assignees,
                 "stage": task["stage_id"][1] if task.get("stage_id") else "Unknown",
+                "phase": task["phase_id"][1] if task.get("phase_id") else None,
                 "deadline": task.get("date_deadline"),
                 "estimated_hours": round(planned, 2),
                 "actual_hours": round(actual, 2),
                 "remaining_hours": round(task.get("remaining_hours") or (planned - actual), 2),
                 "progress_pct": round((actual / planned * 100), 1) if planned > 0 else None,
+                "hours_by_developer": hours_by_developer,
             })
         return {"total": total, "offset": offset, "limit": limit, "records": result}
 
