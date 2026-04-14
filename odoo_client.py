@@ -391,11 +391,12 @@ class OdooClient:
             if len(overdue) >= 20:
                 break
 
-        # 4. Unassigned task count (no primary assignee AND no multi-assignees)
-        unassigned_count = self._execute(
+        # 4. Unassigned task count — subtract assigned from total (more reliable than domain on Many2many)
+        assigned_count = self._execute(
             "project.task", "search_count",
-            [[["project_id", "=", project_id], ["user_id", "=", False], ["project_user_ids", "=", False]]],
+            [[["project_id", "=", project_id], "|", ["user_id", "!=", False], ["project_user_ids", "!=", False]]],
         )
+        unassigned_count = total - assigned_count
 
         # 5. No estimate task count
         no_estimate_count = self._execute(
@@ -410,16 +411,16 @@ class OdooClient:
             args=[[["project_id", "=", project_id]]],
             kwargs={"fields": ["user_id", "unit_amount"], "groupby": ["user_id"]},
         )
-        # Fetch task counts per user via project_user_ids (multi-assign field)
+        # Fetch task counts per user via user_id (primary assignee)
         task_groups = self._execute(
             model="project.task",
             method="read_group",
-            args=[[["project_id", "=", project_id], ["project_user_ids", "!=", False]]],
-            kwargs={"fields": ["project_user_ids"], "groupby": ["project_user_ids"]},
+            args=[[["project_id", "=", project_id], ["user_id", "!=", False]]],
+            kwargs={"fields": ["user_id"], "groupby": ["user_id"]},
         )
         task_count_map = {
-            g["project_user_ids"][0]: g.get("project_user_ids_count", 0)
-            for g in task_groups if g.get("project_user_ids")
+            g["user_id"][0]: g.get("user_id_count", 0)
+            for g in task_groups if g.get("user_id")
         }
         # Fetch emails for workload users
         wl_user_ids = [g["user_id"][0] for g in ts_groups if g.get("user_id")]
