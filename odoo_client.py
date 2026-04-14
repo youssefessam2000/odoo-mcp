@@ -340,6 +340,140 @@ class OdooClient:
             })
         return {"total": total, "offset": offset, "limit": limit, "records": result}
 
+    def get_project_summary(self, project_id: int) -> dict:
+        """Return a compact project summary for agent analysis — works for any project size."""
+        from datetime import date
+        today = date.today().isoformat()
+
+        # 1. Total task count
+        total = self._execute("project.task", "search_count", [[["project_id", "=", project_id]]])
+
+        # 2. Count by stage
+        stage_groups = self._execute(
+            model="project.task",
+            method="read_group",
+            args=[[["project_id", "=", project_id]]],
+            kwargs={"fields": ["stage_id"], "groupby": ["stage_id"]},
+        )
+        by_stage = [
+            {"stage": g["stage_id"][1] if g.get("stage_id") else "Unknown", "count": g["stage_id_count"]}
+            for g in stage_groups
+        ]
+
+        # 3. Overdue tasks (deadline passed, not 100% done) — capped at 20
+        overdue_tasks = self._execute(
+            model="project.task",
+            method="search_read",
+            args=[[
+                ["project_id", "=", project_id],
+                ["date_deadline", "<", today],
+                ["effective_hours", "<", "planned_hours"],
+            ]],
+            kwargs={
+                "fields": ["id", "name", "date_deadline", "user_id", "stage_id", "planned_hours", "effective_hours"],
+                "limit": 20,
+                "order": "date_deadline asc",
+            },
+        )
+        overdue = []
+        for t in overdue_tasks:
+            planned = t.get("planned_hours") or 0
+            actual = t.get("effective_hours") or 0
+            overdue.append({
+                "task_id": t["id"],
+                "task_name": t["name"],
+                "deadline": t.get("date_deadline"),
+                "stage": t["stage_id"][1] if t.get("stage_id") else "Unknown",
+                "assignee": t["user_id"][1] if t.get("user_id") else "Unassigned",
+                "progress_pct": round((actual / planned * 100), 1) if planned > 0 else None,
+            })
+
+        # 4. Unassigned task count
+        unassigned_count = self._execute(
+            "project.task", "search_count",
+            [[["project_id", "=", project_id], ["user_id", "=", False]]],
+        )
+
+        # 5. No estimate task count
+        no_estimate_count = self._execute(
+            "project.task", "search_count",
+            [[["project_id", "=", project_id], ["planned_hours", "=", 0]]],
+        )
+
+        # 6. Workload per developer (from timesheets)
+        ts_groups = self._execute(
+            model="account.analytic.line",
+            method="read_group",
+            args=[[["project_id", "=", project_id]]],
+            kwargs={"fields": ["user_id", "unit_amount"], "groupby": ["user_id"]},
+        )
+        # Fetch task counts per user
+        task_groups = self._execute(
+            model="project.task",
+            method="read_group",
+            args=[[["project_id", "=", project_id], ["user_id", "!=", False]]],
+            kwargs={"fields": ["user_id"], "groupby": ["user_id"]},
+        )
+        task_count_map = {
+            g["user_id"][0]: g["user_id_count"]
+            for g in task_groups if g.get("user_id")
+        }
+        # Fetch emails for workload users
+        wl_user_ids = [g["user_id"][0] for g in ts_groups if g.get("user_id")]
+        email_map = {}
+        if wl_user_ids:
+            users = self._execute(
+                model="res.users",
+                method="search_read",
+                args=[[["id", "in", wl_user_ids]]],
+                kwargs={"fields": ["id", "login"]},
+            )
+            email_map = {u["id"]: u["login"] for u in users}
+
+        workload = []
+        for g in sorted(ts_groups, key=lambda x: x.get("unit_amount", 0), reverse=True):
+            if not g.get("user_id"):
+                continue
+            uid = g["user_id"][0]
+            workload.append({
+                "user_id": uid,
+                "name": g["user_id"][1],
+                "email": email_map.get(uid),
+                "task_count": task_count_map.get(uid, 0),
+                "hours_logged": round(g.get("unit_amount", 0), 2),
+            })
+
+        return {
+            "project_id": project_id,
+            "total_tasks": total,
+            "overdue_count": len(overdue),
+            "unassigned_count": unassigned_count,
+            "no_estimate_count": no_estimate_count,
+            "by_stage": by_stage,
+            "overdue_tasks": overdue,
+            "workload_per_developer": workload,
+        }
+
+    def get_all_project_tasks(self, project_id: int) -> dict:
+        """Fetch all tasks for a project across all pages and return them in one response."""
+        all_records = []
+        offset = 0
+        batch_size = 100
+
+        while True:
+            batch = self.get_project_tasks(project_id=project_id, limit=batch_size, offset=offset)
+            all_records.extend(batch["records"])
+            if len(all_records) >= batch["total"]:
+                break
+            offset += batch_size
+
+        return {"total": len(all_records), "records": all_records}
+
+    def get_project_task_count(self, project_id: int) -> dict:
+        """Return total number of tasks for a project."""
+        total = self._execute("project.task", "search_count", [[["project_id", "=", project_id]]])
+        return {"project_id": project_id, "total_tasks": total}
+
     def get_task_details(self, task_id: int) -> dict:
         """Return full details of a task including estimate and actual hours."""
         results = self._execute(

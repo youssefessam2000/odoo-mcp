@@ -96,6 +96,40 @@ def get_project_tasks(project_id: int, limit: int = 50, offset: int = 0,
 
 
 @mcp.tool()
+def get_project_summary(project_id: int) -> dict:
+    """Get a compact project summary for agent analysis — works for any project size.
+    Returns task counts by stage, overdue tasks, unassigned/no-estimate counts,
+    and workload per developer. Use this instead of fetching raw tasks.
+
+    Args:
+        project_id: The Odoo project ID.
+    """
+    return client.get_project_summary(project_id=project_id)
+
+
+@mcp.tool()
+def get_all_project_tasks(project_id: int) -> dict:
+    """Fetch ALL tasks for a project with no filters or pagination.
+    Internally loops through pages and returns everything in one response.
+    Warning: slow for large projects (100+ tasks).
+
+    Args:
+        project_id: The Odoo project ID.
+    """
+    return client.get_all_project_tasks(project_id=project_id)
+
+
+@mcp.tool()
+def get_project_task_count(project_id: int) -> dict:
+    """Get the total number of tasks for a specific project.
+
+    Args:
+        project_id: The Odoo project ID.
+    """
+    return client.get_project_task_count(project_id=project_id)
+
+
+@mcp.tool()
 def get_task_details(task_id: int) -> dict:
     """Get full details of a task including estimate, actual hours, remaining hours, and progress %.
 
