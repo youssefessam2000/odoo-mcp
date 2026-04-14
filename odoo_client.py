@@ -411,17 +411,6 @@ class OdooClient:
             args=[[["project_id", "=", project_id]]],
             kwargs={"fields": ["user_id", "unit_amount"], "groupby": ["user_id"]},
         )
-        # Fetch task counts per user via user_id (primary assignee)
-        task_groups = self._execute(
-            model="project.task",
-            method="read_group",
-            args=[[["project_id", "=", project_id], ["user_id", "!=", False]]],
-            kwargs={"fields": ["user_id"], "groupby": ["user_id"]},
-        )
-        task_count_map = {
-            g["user_id"][0]: g.get("user_id_count", 0)
-            for g in task_groups if g.get("user_id")
-        }
         # Fetch emails for workload users
         wl_user_ids = [g["user_id"][0] for g in ts_groups if g.get("user_id")]
         email_map = {}
@@ -443,7 +432,6 @@ class OdooClient:
                 "user_id": uid,
                 "name": g["user_id"][1],
                 "email": email_map.get(uid),
-                "task_count": task_count_map.get(uid, 0),
                 "hours_logged": round(g.get("unit_amount", 0), 2),
             })
 
