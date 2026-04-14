@@ -360,25 +360,26 @@ class OdooClient:
             for g in stage_groups
         ]
 
-        # 3. Overdue tasks (deadline passed, not 100% done) — capped at 20
-        overdue_tasks = self._execute(
+        # 3. Overdue tasks (deadline passed) — fetch 50, filter completed in Python, cap at 20
+        overdue_raw = self._execute(
             model="project.task",
             method="search_read",
             args=[[
                 ["project_id", "=", project_id],
                 ["date_deadline", "<", today],
-                ["effective_hours", "<", "planned_hours"],
             ]],
             kwargs={
                 "fields": ["id", "name", "date_deadline", "user_id", "stage_id", "planned_hours", "effective_hours"],
-                "limit": 20,
+                "limit": 50,
                 "order": "date_deadline asc",
             },
         )
         overdue = []
-        for t in overdue_tasks:
+        for t in overdue_raw:
             planned = t.get("planned_hours") or 0
             actual = t.get("effective_hours") or 0
+            if planned > 0 and actual >= planned:
+                continue  # skip completed tasks
             overdue.append({
                 "task_id": t["id"],
                 "task_name": t["name"],
@@ -387,11 +388,13 @@ class OdooClient:
                 "assignee": t["user_id"][1] if t.get("user_id") else "Unassigned",
                 "progress_pct": round((actual / planned * 100), 1) if planned > 0 else None,
             })
+            if len(overdue) >= 20:
+                break
 
-        # 4. Unassigned task count
+        # 4. Unassigned task count (no primary assignee AND no multi-assignees)
         unassigned_count = self._execute(
             "project.task", "search_count",
-            [[["project_id", "=", project_id], ["user_id", "=", False]]],
+            [[["project_id", "=", project_id], ["user_id", "=", False], ["project_user_ids", "=", False]]],
         )
 
         # 5. No estimate task count
@@ -407,16 +410,16 @@ class OdooClient:
             args=[[["project_id", "=", project_id]]],
             kwargs={"fields": ["user_id", "unit_amount"], "groupby": ["user_id"]},
         )
-        # Fetch task counts per user
+        # Fetch task counts per user via project_user_ids (multi-assign field)
         task_groups = self._execute(
             model="project.task",
             method="read_group",
-            args=[[["project_id", "=", project_id], ["user_id", "!=", False]]],
-            kwargs={"fields": ["user_id"], "groupby": ["user_id"]},
+            args=[[["project_id", "=", project_id], ["project_user_ids", "!=", False]]],
+            kwargs={"fields": ["project_user_ids"], "groupby": ["project_user_ids"]},
         )
         task_count_map = {
-            g["user_id"][0]: g["user_id_count"]
-            for g in task_groups if g.get("user_id")
+            g["project_user_ids"][0]: g.get("project_user_ids_count", 0)
+            for g in task_groups if g.get("project_user_ids")
         }
         # Fetch emails for workload users
         wl_user_ids = [g["user_id"][0] for g in ts_groups if g.get("user_id")]
