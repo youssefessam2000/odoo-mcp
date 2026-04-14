@@ -340,7 +340,7 @@ class OdooClient:
             })
         return {"total": total, "offset": offset, "limit": limit, "records": result}
 
-    def get_project_summary(self, project_id: int) -> dict:
+    def get_project_summary(self, project_id: int, workload_limit: int = 20) -> dict:
         """Return a compact project summary for agent analysis — works for any project size."""
         from datetime import date
         today = date.today().isoformat()
@@ -424,7 +424,7 @@ class OdooClient:
             email_map = {u["id"]: u["login"] for u in users}
 
         workload = []
-        for g in sorted(ts_groups, key=lambda x: x.get("unit_amount", 0), reverse=True):
+        for g in sorted(ts_groups, key=lambda x: x.get("unit_amount", 0), reverse=True)[:workload_limit]:
             if not g.get("user_id"):
                 continue
             uid = g["user_id"][0]

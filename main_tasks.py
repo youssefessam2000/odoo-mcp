@@ -96,15 +96,16 @@ def get_project_tasks(project_id: int, limit: int = 50, offset: int = 0,
 
 
 @mcp.tool()
-def get_project_summary(project_id: int) -> dict:
+def get_project_summary(project_id: int, workload_limit: int = 20) -> dict:
     """Get a compact project summary for agent analysis — works for any project size.
     Returns task counts by stage, overdue tasks, unassigned/no-estimate counts,
-    and workload per developer. Use this instead of fetching raw tasks.
+    and top developers by hours logged.
 
     Args:
-        project_id: The Odoo project ID.
+        project_id:     The Odoo project ID.
+        workload_limit: Max number of developers to return in workload list (default 20).
     """
-    return client.get_project_summary(project_id=project_id)
+    return client.get_project_summary(project_id=project_id, workload_limit=workload_limit)
 
 
 @mcp.tool()
